@@ -15,7 +15,7 @@ namespace EasySave.App.Controllers
     public class BackupController
     {
         private List<BackupJob> _backupJobs;
-        private readonly ILogger _logger;
+        private ILogger _logger;
 
         private readonly string _jobsFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "jobs.json");
         public BackupController()
@@ -140,6 +140,13 @@ namespace EasySave.App.Controllers
 
                 SaveJobs();
             }
+        }
+        public void UpdateLogger()
+        {
+            _logger = LoggerCrea.CreateLogger(
+                AppSettings.Instance.LogFormat,
+                AppSettings.Instance.LogDirectory
+            );
         }
     }
 }

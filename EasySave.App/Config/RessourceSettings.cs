@@ -23,6 +23,9 @@ namespace EasySave.App.Config
             { "EnterTarget", "Entrez le dossier de destination :" },
             { "EnterType", "Type de sauvegarde (1: Complet, 2: Différentiel) :" },
             { "Success", "Opération réussie !" },
+            { "ConfigMenu",    "1. Changer la langue\n2. Changer le format des logs" },
+            { "ChangeFormat",  "Format des logs (json/xml) :" },
+            { "FormatChanged", "Format de log mis à jour !" },
             { "Error", "Erreur : " }
         };
 
@@ -44,6 +47,9 @@ namespace EasySave.App.Config
             { "EnterTarget", "Enter target directory:" },
             { "EnterType", "Backup Type (1: Full, 2: Differential):" },
             { "Success", "Operation successful!" },
+            { "ConfigMenu",    "1. Change Language\n2. Change Log Format" },
+            { "ChangeFormat",  "Log Format (json/xml):" },
+            { "FormatChanged", "Log format updated!" },
             { "Error", "Error: " }
         };
 

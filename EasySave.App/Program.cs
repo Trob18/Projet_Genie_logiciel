@@ -80,22 +80,37 @@ namespace EasySave.App
                         break;
 
                     case "5":
-                        string langChoice = view.AskForInput("ChangeLang");
+                        Console.WriteLine(Config.ResourceSettings.GetString("ConfigMenu"));
+                        string configChoice = Console.ReadLine();
 
-                        if (langChoice.ToLower() == "fr")
+                        if (configChoice == "1")
                         {
-                            Config.AppSettings.Instance.Language = Language.Francais;
-                            Console.WriteLine(Config.ResourceSettings.GetString("LangChanged"));
+                            string langChoice = view.AskForInput("ChangeLang");
+                            if (langChoice.ToLower() == "fr") Config.AppSettings.Instance.Language = Language.Francais;
+                            else if (langChoice.ToLower() == "en") Config.AppSettings.Instance.Language = Language.English;
                         }
-                        else if (langChoice.ToLower() == "en")
+                        else if (configChoice == "2")
                         {
-                            Config.AppSettings.Instance.Language = Language.English;
-                            Console.WriteLine(Config.ResourceSettings.GetString("LangChanged"));
+                            string formatChoice = view.AskForInput("ChangeFormat");
+
+                            if (formatChoice.ToLower() == "xml")
+                            {
+                                Config.AppSettings.Instance.LogFormat = "xml";
+                                controller.UpdateLogger();
+                                Console.WriteLine(Config.ResourceSettings.GetString("FormatChanged"));
+                            }
+                            else if (formatChoice.ToLower() == "json")
+                            {
+                                Config.AppSettings.Instance.LogFormat = "json";
+                                controller.UpdateLogger();
+                                Console.WriteLine(Config.ResourceSettings.GetString("FormatChanged"));
+                            }
+                            else
+                            {
+                                view.DisplayError("Invalid format.");
+                            }
                         }
-                        else
-                        {
-                            view.DisplayError("Invalid language.");
-                        }
+
                         Console.Clear();
                         break;
 
