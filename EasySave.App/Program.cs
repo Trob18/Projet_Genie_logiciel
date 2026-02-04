@@ -60,7 +60,27 @@ namespace EasySave.App
                         }
                         break;
 
+
                     case "4":
+                        view.DisplayJobs(controller.GetJobs());
+                        string deleteIndexStr = view.AskForInput("EnterName");
+
+                        if (int.TryParse(deleteIndexStr, out int deleteIndex))
+                        {
+                            controller.DeleteJob(deleteIndex);
+
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                            Console.WriteLine(Config.ResourceSettings.GetString("JobDeleted"));
+                            Console.ResetColor();
+                        }
+                        else
+                        {
+                            view.DisplayError("Invalid index.");
+                        }
+                        break;
+
+
+                    case "5":
                         running = false;
                         break;
 
