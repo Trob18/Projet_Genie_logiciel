@@ -131,5 +131,16 @@ namespace EasySave.App.Controllers
 
             StateSettings.UpdateState(stateLog);
         }
+
+
+        public void DeleteJob(int index)
+        {
+            if (index >= 0 && index < _backupJobs.Count)
+            {
+                _backupJobs.RemoveAt(index);
+
+                SaveJobs();
+            }
+        }
     }
 }
