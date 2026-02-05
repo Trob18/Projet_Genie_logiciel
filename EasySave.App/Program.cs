@@ -59,9 +59,10 @@ namespace EasySave.App
                     case "2":
                         try
                         {
-                            string name = view.AskForInput("EnterName");
-                            string source = view.AskForInput("EnterSource");
-                            string target = view.AskForInput("EnterTarget");
+                            Console.WriteLine("----------------------------------\n");
+                            string name = view.AskForInput("EnterName"); Console.WriteLine();
+                            string source = view.AskForInput("EnterSource"); Console.WriteLine();
+                            string target = view.AskForInput("EnterTarget"); Console.WriteLine();
                             BackupType type = view.AskForBackupType();
                             controller.CreateJob(name, source, target, type);
                             view.DisplaySuccess();
