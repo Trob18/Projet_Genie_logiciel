@@ -91,7 +91,7 @@ namespace EasySave.App
 
                     case "4":
                         view.DisplayJobs(controller.GetJobs());
-                        string delInput = view.AskForInput("EnterName");
+                        string delInput = view.AskForInput("EnterJobID");
                         if (int.TryParse(delInput, out int delIdx))
                         {
                             controller.DeleteJob(delIdx - 1);
