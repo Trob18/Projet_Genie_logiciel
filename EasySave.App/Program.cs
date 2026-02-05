@@ -59,9 +59,10 @@ namespace EasySave.App
                     case "2":
                         try
                         {
-                            string name = view.AskForInput("EnterName");
-                            string source = view.AskForInput("EnterSource");
-                            string target = view.AskForInput("EnterTarget");
+                            Console.WriteLine("----------------------------------\n");
+                            string name = view.AskForInput("EnterName"); Console.WriteLine();
+                            string source = view.AskForInput("EnterSource"); Console.WriteLine();
+                            string target = view.AskForInput("EnterTarget"); Console.WriteLine();
                             BackupType type = view.AskForBackupType();
                             controller.CreateJob(name, source, target, type);
                             view.DisplaySuccess();
@@ -90,7 +91,7 @@ namespace EasySave.App
 
                     case "4":
                         view.DisplayJobs(controller.GetJobs());
-                        string delInput = view.AskForInput("EnterName");
+                        string delInput = view.AskForInput("EnterJobID");
                         if (int.TryParse(delInput, out int delIdx))
                         {
                             controller.DeleteJob(delIdx - 1);
@@ -111,6 +112,7 @@ namespace EasySave.App
                             Config.AppSettings.Instance.Language = Language.English;
                         }
 
+                        Config.AppSettings.Instance.Save();
                         Console.Clear();
                         break;
 

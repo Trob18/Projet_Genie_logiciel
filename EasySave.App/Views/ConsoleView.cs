@@ -20,15 +20,15 @@ namespace EasySave.App.Views
             Console.WriteLine(ResourceSettings.GetString("OptionConfig"));
             Console.WriteLine(ResourceSettings.GetString("Option4"));
             Console.WriteLine("----------------------------------");
-            Console.Write("Choice: ");
+            Console.Write(ResourceSettings.GetString("Choice") + ": ");
         }
 
         public void DisplayJobs(List<BackupJob> jobs)
         {
-            Console.WriteLine("\n--- LIST ---");
+            Console.WriteLine("\n--- "+ ResourceSettings.GetString("LIST") +" ---");
             if (jobs.Count == 0)
             {
-                Console.WriteLine("No jobs available.");
+                Console.WriteLine(ResourceSettings.GetString("NoJobAvailed"));
             }
             else
             {
