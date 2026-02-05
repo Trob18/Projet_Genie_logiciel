@@ -20,7 +20,7 @@ namespace EasySave.App.Views
             Console.WriteLine(ResourceSettings.GetString("OptionConfig"));
             Console.WriteLine(ResourceSettings.GetString("Option4"));
             Console.WriteLine("----------------------------------");
-            Console.Write("Choice: ");
+            Console.Write(ResourceSettings.GetString("Choice") + ": ");
         }
 
         public void DisplayJobs(List<BackupJob> jobs)
