@@ -45,6 +45,20 @@ namespace EasySave.WPF.Config
         public string LogDirectory { get; set; }
         public string StateDirectory { get; set; }
 
+        private string _encryptedExtensions;
+        public string EncryptedExtensions
+        {
+            get => _encryptedExtensions;
+            set
+            {
+                if (_encryptedExtensions != value)
+                {
+                    _encryptedExtensions = value;
+                    SaveSettings();
+                }
+            }
+        }
+
         public static AppSettings Instance
         {
             get
@@ -64,6 +78,7 @@ namespace EasySave.WPF.Config
         {
             _language = Language.English;
             _logFormat = "json";
+            _encryptedExtensions = ""; // Default to empty
             LogDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
             StateDirectory = AppDomain.CurrentDomain.BaseDirectory;
             LoadSettings();
@@ -84,6 +99,7 @@ namespace EasySave.WPF.Config
                     {
                         _language = savedSettings.Language;
                         _logFormat = savedSettings.LogFormat;
+                        _encryptedExtensions = savedSettings.EncryptedExtensions;
                     }
                 }
                 catch
@@ -97,7 +113,8 @@ namespace EasySave.WPF.Config
             var settingsToSave = new AppSettingsDto
             {
                 Language = _language,
-                LogFormat = _logFormat
+                LogFormat = _logFormat,
+                EncryptedExtensions = _encryptedExtensions
             };
 
             var options = new JsonSerializerOptions { WriteIndented = true };
@@ -110,5 +127,6 @@ namespace EasySave.WPF.Config
     {
         public Language Language { get; set; }
         public string LogFormat { get; set; }
+        public string EncryptedExtensions { get; set; }
     }
 }

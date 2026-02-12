@@ -38,9 +38,11 @@ namespace EasySave.WPF.ViewModels
         private BackupType _selectedType;
         public BackupType SelectedType { get => _selectedType; set { _selectedType = value; OnPropertyChanged(); } }
 
-        private bool _isEncryptionEnabled;
-        public bool IsEncryptionEnabled { get => _isEncryptionEnabled; set { _isEncryptionEnabled = value; OnPropertyChanged(); } }
+        public ObservableCollection<string> EncryptedExtensionsList { get; set; }
 
+        private string _newExtensionInput;
+        public string NewExtensionInput { get => _newExtensionInput; set { _newExtensionInput = value; OnPropertyChanged(); } }
+        
         private int _progressValue;
         public int ProgressValue { get => _progressValue; set { _progressValue = value; OnPropertyChanged(); } }
 
@@ -97,6 +99,8 @@ namespace EasySave.WPF.ViewModels
         public ICommand CreateJobCommand { get; }
         public ICommand DeleteJobCommand { get; }
         public ICommand ExecuteJobCommand { get; }
+        public ICommand AddExtensionCommand { get; }
+        public ICommand RemoveExtensionCommand { get; }
 
         public MainViewModel()
         {
@@ -111,9 +115,17 @@ namespace EasySave.WPF.ViewModels
             BackupJobs = new ObservableCollection<BackupJob>();
             LoadJobs();
 
+            EncryptedExtensionsList = new ObservableCollection<string>(
+                AppSettings.Instance.EncryptedExtensions
+                    .Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(ext => ext.ToLower().Trim())
+            );
+
             CreateJobCommand = new RelayCommand(param => CreateJob());
             DeleteJobCommand = new RelayCommand(param => DeleteJob(), param => SelectedJob != null);
             ExecuteJobCommand = new RelayCommand(param => ExecuteJob(), param => SelectedJob != null);
+            AddExtensionCommand = new RelayCommand(param => AddExtension());
+            RemoveExtensionCommand = new RelayCommand(param => RemoveExtension(param as string), param => param is string);
 
             StatusMessage = ResourceSettings.GetString("StatusReady");
         }
@@ -155,6 +167,37 @@ namespace EasySave.WPF.ViewModels
             File.WriteAllText(_jobsFilePath, json);
         }
 
+        private void AddExtension()
+        {
+            if (!string.IsNullOrWhiteSpace(NewExtensionInput))
+            {
+                string newExt = NewExtensionInput.ToLower().Trim();
+                if (!newExt.StartsWith(".")) newExt = "." + newExt;
+
+                if (!EncryptedExtensionsList.Contains(newExt))
+                {
+                    EncryptedExtensionsList.Add(newExt);
+                    SaveEncryptedExtensions();
+                    NewExtensionInput = ""; // Clear input after adding
+                }
+            }
+        }
+
+        private void RemoveExtension(string extension)
+        {
+            if (!string.IsNullOrWhiteSpace(extension))
+            {
+                EncryptedExtensionsList.Remove(extension);
+                SaveEncryptedExtensions();
+            }
+        }
+
+        private void SaveEncryptedExtensions()
+        {
+            AppSettings.Instance.EncryptedExtensions = string.Join(", ", EncryptedExtensionsList);
+            // AppSettings.Instance.SaveSettings() is called automatically by the property setter
+        }
+
         private void CreateJob()
         {
             if (BackupJobs.Count >= 5)
@@ -169,7 +212,7 @@ namespace EasySave.WPF.ViewModels
                 return;
             }
 
-            var newJob = new BackupJob(JobName, SourcePath, TargetPath, SelectedType, IsEncryptionEnabled);
+            var newJob = new BackupJob(JobName, SourcePath, TargetPath, SelectedType);
             BackupJobs.Add(newJob);
             SaveJobs();
 

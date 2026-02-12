@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using EasySave.WPF.Config; // Add this using directive
 
 namespace EasySave.WPF.Models
 {
@@ -14,20 +15,18 @@ namespace EasySave.WPF.Models
         public string TargetDirectory { get; set; }
         public BackupType Type { get; set; }
         public BackupState State { get; set; }
-        public bool IsEncrypted { get; set; }
 
         public event EventHandler<BackupProgressEventArgs> OnProgressUpdate;
 
         public event EventHandler<(string source, string target, long size, float time)> OnFileCopied;
 
-        public BackupJob(string name, string source, string target, BackupType type, bool isEncrypted)
+        public BackupJob(string name, string source, string target, BackupType type)
         {
             Name = name;
             SourceDirectory = source;
             TargetDirectory = target;
             Type = type;
             State = BackupState.Inactive;
-            IsEncrypted = isEncrypted;
         }
 
         public BackupJob()
@@ -43,6 +42,12 @@ namespace EasySave.WPF.Models
                 State = BackupState.Error;
                 return;
             }
+
+            // Get encrypted extensions from settings
+            List<string> encryptedExtensions = AppSettings.Instance.EncryptedExtensions
+                                                    .Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                                                    .Select(ext => ext.ToLower().Trim())
+                                                    .ToList();
 
             var allFiles = Directory.GetFiles(SourceDirectory, "*.*", SearchOption.AllDirectories);
             int totalFiles = allFiles.Length;
@@ -84,7 +89,9 @@ namespace EasySave.WPF.Models
                     stopwatchCopy.Stop();
                     copyTime = stopwatchCopy.ElapsedMilliseconds;
 
-                    if (IsEncrypted)
+                    string fileExtension = Path.GetExtension(filePath).ToLower();
+
+                    if (encryptedExtensions.Contains(fileExtension))
                     {
                         ProcessStartInfo startInfo = new ProcessStartInfo
                         {
