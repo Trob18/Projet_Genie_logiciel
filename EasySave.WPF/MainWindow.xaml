@@ -43,6 +43,7 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -53,6 +54,7 @@
                         <TextBlock Text="{Binding Labels[SourcePath]}" Grid.Column="1" FontWeight="Bold"/>
                         <TextBlock Text="{Binding Labels[TargetPath]}" Grid.Column="2" FontWeight="Bold"/>
                         <TextBlock Text="{Binding Labels[Type]}" Grid.Column="3" FontWeight="Bold"/>
+                        <TextBlock Text="{Binding Labels[Encrypt]}" Grid.Column="4" FontWeight="Bold"/>
 
                         <TextBox Text="{Binding JobName, UpdateSourceTrigger=PropertyChanged}" Grid.Row="1" Grid.Column="0" Margin="0,5,5,0"/>
                         <TextBox Text="{Binding SourcePath, UpdateSourceTrigger=PropertyChanged}" Grid.Row="1" Grid.Column="1" Margin="0,5,5,0"/>
@@ -61,9 +63,11 @@
                         <ComboBox ItemsSource="{Binding Source={StaticResource BackupTypeEnum}}" 
                                   SelectedItem="{Binding SelectedType}" 
                                   Grid.Row="1" Grid.Column="3" Width="100" Margin="0,5,5,0" VerticalContentAlignment="Center"/>
+                        <CheckBox IsChecked="{Binding IsEncryptionEnabled}" 
+                                  Grid.Row="1" Grid.Column="4" HorizontalAlignment="Center" VerticalAlignment="Center"/>
 
                         <Button Content="{Binding Labels[Create]}" Command="{Binding CreateJobCommand}" 
-                                Grid.Row="1" Grid.Column="4" Width="80" Margin="0,5,0,0"/>
+                                Grid.Row="1" Grid.Column="5" Width="80" Margin="0,5,0,0"/>
                     </Grid>
                 </GroupBox>
 

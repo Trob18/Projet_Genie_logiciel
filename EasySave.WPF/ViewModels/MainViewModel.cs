@@ -38,6 +38,9 @@ namespace EasySave.WPF.ViewModels
         private BackupType _selectedType;
         public BackupType SelectedType { get => _selectedType; set { _selectedType = value; OnPropertyChanged(); } }
 
+        private bool _isEncryptionEnabled;
+        public bool IsEncryptionEnabled { get => _isEncryptionEnabled; set { _isEncryptionEnabled = value; OnPropertyChanged(); } }
+
         private int _progressValue;
         public int ProgressValue { get => _progressValue; set { _progressValue = value; OnPropertyChanged(); } }
 
@@ -166,7 +169,7 @@ namespace EasySave.WPF.ViewModels
                 return;
             }
 
-            var newJob = new BackupJob(JobName, SourcePath, TargetPath, SelectedType);
+            var newJob = new BackupJob(JobName, SourcePath, TargetPath, SelectedType, IsEncryptionEnabled);
             BackupJobs.Add(newJob);
             SaveJobs();
 
