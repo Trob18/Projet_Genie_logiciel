@@ -42,6 +42,21 @@ namespace EasySave.WPF.ViewModels
 
         private string _newExtensionInput;
         public string NewExtensionInput { get => _newExtensionInput; set { _newExtensionInput = value; OnPropertyChanged(); } }
+
+        public bool EncryptAll
+        {
+            get => AppSettings.Instance.EncryptAll;
+            set
+            {
+                if (AppSettings.Instance.EncryptAll != value)
+                {
+                    AppSettings.Instance.EncryptAll = value;
+                    OnPropertyChanged();
+                    // Invalidate UI for conditional enabling/disabling of extension input
+                    OnPropertyChanged(nameof(EncryptAll)); 
+                }
+            }
+        }
         
         private int _progressValue;
         public int ProgressValue { get => _progressValue; set { _progressValue = value; OnPropertyChanged(); } }

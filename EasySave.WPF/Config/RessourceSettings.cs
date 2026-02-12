@@ -23,6 +23,7 @@ namespace EasySave.WPF.Config
             { "LogFormat", "Format des Logs :" },
             { "LangInterface", "Langue de l'interface :" },
             { "EncryptExtensions", "Extensions à encrypter :" },
+            { "EncryptAll", "Encrypter tous les fichiers" },
             { "AddExtension", "Ajouter" },
             { "RestartWarning", "Le changement de langue nécessitera un redémarrage pour être complet." }
         };
@@ -45,6 +46,7 @@ namespace EasySave.WPF.Config
             { "LogFormat", "Log Format :" },
             { "LangInterface", "Interface Language :" },
             { "EncryptExtensions", "Extensions to encrypt :" },
+            { "EncryptAll", "Encrypt all files" },
             { "AddExtension", "Add" },
             { "RestartWarning", "Language change requires a restart to be fully applied." }
         };

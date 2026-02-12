@@ -89,9 +89,18 @@ namespace EasySave.WPF.Models
                     stopwatchCopy.Stop();
                     copyTime = stopwatchCopy.ElapsedMilliseconds;
 
-                    string fileExtension = Path.GetExtension(filePath).ToLower();
+                    bool shouldEncrypt = false;
+                    if (AppSettings.Instance.EncryptAll)
+                    {
+                        shouldEncrypt = true;
+                    }
+                    else
+                    {
+                        string fileExtension = Path.GetExtension(filePath).ToLower();
+                        shouldEncrypt = encryptedExtensions.Contains(fileExtension);
+                    }
 
-                    if (encryptedExtensions.Contains(fileExtension))
+                    if (shouldEncrypt)
                     {
                         ProcessStartInfo startInfo = new ProcessStartInfo
                         {
