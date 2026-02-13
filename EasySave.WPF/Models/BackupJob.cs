@@ -5,7 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using EasySave.WPF.Config;
-using System.Threading; // AJOUT
+using System.Threading;
 
 namespace EasySave.WPF.Models
 {
@@ -31,12 +31,10 @@ namespace EasySave.WPF.Models
 
         public BackupJob() { }
 
-        public void Execute()
-        {
-            Execute(CancellationToken.None);
-        }
+        // Compatibilité
+        public void Execute() => Execute(CancellationToken.None);
 
-        // Step 2 : Stop réel via CancellationToken
+        // Stop réel
         public void Execute(CancellationToken ct)
         {
             State = BackupState.Active;
@@ -47,13 +45,14 @@ namespace EasySave.WPF.Models
                 return;
             }
 
-            // Get encrypted extensions from settings
+            // Extensions à chiffrer
             List<string> encryptedExtensions = AppSettings.Instance.EncryptedExtensions
                 .Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(ext => ext.ToLower().Trim())
                 .ToList();
 
             var allFiles = Directory.GetFiles(SourceDirectory, "*.*", SearchOption.AllDirectories);
+
             int totalFiles = allFiles.Length;
             int processedCount = 0;
 
@@ -72,86 +71,83 @@ namespace EasySave.WPF.Models
 
             foreach (var filePath in allFiles)
             {
-                // STOP réel (entre 2 fichiers)
+                // STOP entre 2 fichiers
                 ct.ThrowIfCancellationRequested();
 
                 string relativePath = Path.GetRelativePath(SourceDirectory, filePath);
                 string targetFilePath = Path.Combine(TargetDirectory, relativePath);
-                string? targetDir = Path.GetDirectoryName(targetFilePath);
 
-                if (!Directory.Exists(targetDir))
-                    Directory.CreateDirectory(targetDir!);
+                string? targetDir = Path.GetDirectoryName(targetFilePath);
+                if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
+                    Directory.CreateDirectory(targetDir);
 
                 long currentFileSize = new FileInfo(filePath).Length;
 
                 bool shouldCopy = false;
-                if (Type == BackupType.Full) shouldCopy = true;
+
+                if (Type == BackupType.Full)
+                    shouldCopy = true;
                 else if (Type == BackupType.Differential)
                 {
-                    if (!File.Exists(targetFilePath) || File.GetLastWriteTime(filePath) > File.GetLastWriteTime(targetFilePath))
+                    if (!File.Exists(targetFilePath) ||
+                        File.GetLastWriteTime(filePath) > File.GetLastWriteTime(targetFilePath))
                         shouldCopy = true;
                 }
 
                 if (shouldCopy)
                 {
-                    long copyTime = 0;
+                    long copyTime;
                     long encryptionTime = 0;
 
-                    Stopwatch stopwatchCopy = Stopwatch.StartNew();
+                    var swCopy = Stopwatch.StartNew();
                     try
                     {
                         File.Copy(filePath, targetFilePath, true);
-                        stopwatchCopy.Stop();
-                        copyTime = stopwatchCopy.ElapsedMilliseconds;
+                        swCopy.Stop();
+                        copyTime = swCopy.ElapsedMilliseconds;
                     }
                     catch
                     {
-                        stopwatchCopy.Stop();
-                        // copy error => time negative (aligné avec CDC)
-                        OnFileCopied?.Invoke(this, (filePath, targetFilePath, currentFileSize, -stopwatchCopy.ElapsedMilliseconds));
+                        swCopy.Stop();
+                        // temps négatif en cas d’erreur (CDC)
+                        OnFileCopied?.Invoke(this, (filePath, targetFilePath, currentFileSize, -swCopy.ElapsedMilliseconds));
                         State = BackupState.Error;
                         continue;
                     }
 
-                    bool shouldEncrypt;
-                    if (AppSettings.Instance.EncryptAll)
+                    bool shouldEncrypt = AppSettings.Instance.EncryptAll;
+                    if (!shouldEncrypt)
                     {
-                        shouldEncrypt = true;
-                    }
-                    else
-                    {
-                        string fileExtension = Path.GetExtension(filePath).ToLower();
-                        shouldEncrypt = encryptedExtensions.Contains(fileExtension);
+                        string ext = Path.GetExtension(filePath).ToLower();
+                        shouldEncrypt = encryptedExtensions.Contains(ext);
                     }
 
                     if (shouldEncrypt)
                     {
-                        // si stop demandé, on stop avant de lancer CryptoSoft
+                        // ✅ Stop avant CryptoSoft aussi
                         ct.ThrowIfCancellationRequested();
 
-                        ProcessStartInfo startInfo = new ProcessStartInfo
+                        try
                         {
-                            FileName = cryptoSoftPath,
-                            Arguments = $"\"{targetFilePath}\" \"{encryptionKey}\"",
-                            UseShellExecute = false,
-                            RedirectStandardOutput = true,
-                            CreateNoWindow = true
-                        };
+                            ProcessStartInfo startInfo = new ProcessStartInfo
+                            {
+                                FileName = cryptoSoftPath,
+                                Arguments = $"\"{targetFilePath}\" \"{encryptionKey}\"",
+                                UseShellExecute = false,
+                                RedirectStandardOutput = true,
+                                CreateNoWindow = true
+                            };
 
-                        using (Process process = Process.Start(startInfo))
+                            using (Process process = Process.Start(startInfo))
+                            {
+                                process.WaitForExit();
+                                encryptionTime = process.ExitCode; // >=0 temps / <0 erreur
+                            }
+                        }
+                        catch
                         {
-                            process.WaitForExit();
-
-                            if (process.ExitCode >= 0)
-                            {
-                                encryptionTime = process.ExitCode;
-                            }
-                            else
-                            {
-                                // encryption error => negative time
-                                encryptionTime = process.ExitCode; // <0
-                                Debug.WriteLine($"CryptoSoft encryption failed for {targetFilePath} with exit code {process.ExitCode}");
-                            }
+                            // Si crash lancement CryptoSoft => code erreur négatif
+                            encryptionTime = -1;
                         }
                     }
 

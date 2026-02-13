@@ -291,12 +291,11 @@ namespace EasySave.WPF.ViewModels
             _cts = new CancellationTokenSource();
             var token = _cts.Token;
 
-            var job = SelectedJob; // snapshot (évite surprises si sélection change)
+            var job = SelectedJob; // snapshot
 
             StatusMessage = $"Exécution : {job.Name}...";
             ProgressValue = 0;
 
-            // on s’assure de ne pas empiler les handlers à chaque Run
             DetachJobHandlers(job);
             AttachJobHandlers(job);
 
@@ -304,11 +303,8 @@ namespace EasySave.WPF.ViewModels
             {
                 await Task.Run(() =>
                 {
-                    token.ThrowIfCancellationRequested();
-
-                    // Stop réel nécessite un Execute(CancellationToken) dans BackupJob
-                    job.Execute();
-
+                    // appel du moteur avec token => Stop réel
+                    job.Execute(token);
                 }, token);
 
                 StatusMessage = $"{job.Name} terminé !";
@@ -337,12 +333,14 @@ namespace EasySave.WPF.ViewModels
             }
             finally
             {
-                // évite fuites/duplications
                 DetachJobHandlers(job);
-
                 IsRunning = false;
+
+                _cts?.Dispose();
+                _cts = null;
             }
         }
+
 
         private void RequestStop()
         {
