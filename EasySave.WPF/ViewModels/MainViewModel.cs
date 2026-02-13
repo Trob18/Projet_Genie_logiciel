@@ -5,9 +5,10 @@ using EasySave.WPF.Enumerations;
 using EasySave.WPF.Models;
 using EasySave.WPF.State;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Linq;               // (Select)
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,6 +20,7 @@ namespace EasySave.WPF.ViewModels
     public class MainViewModel : ViewModelBase
     {
         private readonly Language _startupLanguage;
+
         public ObservableCollection<BackupJob> BackupJobs { get; set; }
 
         private BackupJob _selectedJob;
@@ -27,20 +29,21 @@ namespace EasySave.WPF.ViewModels
             get => _selectedJob;
             set
             {
-                // ✅ si on change de job, on désabonne les handlers de l'ancien
+                // si on change de job, on désabonne de l'ancien (sécurité)
                 DetachJobHandlers(_selectedJob);
 
                 _selectedJob = value;
                 OnPropertyChanged();
 
-                // ✅ et on ré-abonne sur le nouveau (optionnel : on peut abonner seulement au moment Run)
-                // AttachJobHandlers(_selectedJob);
-
                 CommandManager.InvalidateRequerySuggested();
             }
         }
 
+        // sélection multiple (apport 68-bis)
+        public List<BackupJob> SelectedJobsList { get; set; } = new List<BackupJob>();
+
         public LanguageProxy Labels { get; } = new LanguageProxy();
+
         private string _jobName;
         public string JobName { get => _jobName; set { _jobName = value; OnPropertyChanged(); } }
 
@@ -121,7 +124,7 @@ namespace EasySave.WPF.ViewModels
         private readonly string _jobsFilePath;
         private ILogger _logger;
 
-        // état d’exécution (évite multi-run)
+        // anti double-run
         private bool _isRunning;
         public bool IsRunning
         {
@@ -134,19 +137,21 @@ namespace EasySave.WPF.ViewModels
             }
         }
 
-        // préparation Stop
+        // Stop réel
         private CancellationTokenSource? _cts;
 
-        // handlers stockés (pour pouvoir unsubscribe)
+        // handlers stockés (évite empilement)
         private EventHandler<BackupProgressEventArgs>? _progressHandler;
         private EventHandler<(string source, string target, long size, float time)>? _fileCopiedHandler;
 
         public ICommand CreateJobCommand { get; }
         public ICommand DeleteJobCommand { get; }
         public ICommand ExecuteJobCommand { get; }
-        public ICommand StopJobCommand { get; }   // (stop)
+        public ICommand StopJobCommand { get; }
         public ICommand AddExtensionCommand { get; }
         public ICommand RemoveExtensionCommand { get; }
+
+        public string this[string key] => ResourceSettings.GetString(key);
 
         public MainViewModel()
         {
@@ -170,16 +175,22 @@ namespace EasySave.WPF.ViewModels
             CreateJobCommand = new RelayCommand(_ => CreateJob(), _ => !IsRunning);
             DeleteJobCommand = new RelayCommand(_ => DeleteJob(), _ => SelectedJob != null && !IsRunning);
 
-            // async sans nouvelle classe : on utilise un async lambda (Action => async void OK)
-            ExecuteJobCommand = new RelayCommand(async _ => await ExecuteJobAsync(), _ => SelectedJob != null && !IsRunning);
+            // Async + multi jobs (séquentiel) + stop réel
+            ExecuteJobCommand = new RelayCommand(async _ => await ExecuteJobsAsync(), _ => CanRunJobs());
 
-            // Stop “request”
             StopJobCommand = new RelayCommand(_ => RequestStop(), _ => IsRunning);
 
             AddExtensionCommand = new RelayCommand(_ => AddExtension(), _ => !IsRunning);
             RemoveExtensionCommand = new RelayCommand(param => RemoveExtension(param as string), param => param is string && !IsRunning);
 
             StatusMessage = ResourceSettings.GetString("StatusReady");
+        }
+
+        private bool CanRunJobs()
+        {
+            if (IsRunning) return false;
+            if (SelectedJobsList != null && SelectedJobsList.Count > 0) return true;
+            return SelectedJob != null;
         }
 
         private void UpdateLogger(bool isStartup)
@@ -271,18 +282,26 @@ namespace EasySave.WPF.ViewModels
         {
             if (SelectedJob != null)
             {
-                DetachJobHandlers(SelectedJob); // ✅ clean
+                DetachJobHandlers(SelectedJob);
                 BackupJobs.Remove(SelectedJob);
                 SaveJobs();
                 StatusMessage = "Travail supprimé.";
             }
         }
 
-        // ASYNC PROPRE (pas de freeze + pas de double-events)
-        private async Task ExecuteJobAsync()
+        // Exécution séquentielle (pas parallèle) + stop réel + pas de freeze UI
+        private async Task ExecuteJobsAsync()
         {
-            if (SelectedJob == null) return;
             if (IsRunning) return;
+
+            // jobs à exécuter : multi-select sinon single
+            var jobsToRun = new List<BackupJob>();
+            if (SelectedJobsList != null && SelectedJobsList.Count > 0)
+                jobsToRun.AddRange(SelectedJobsList);
+            else if (SelectedJob != null)
+                jobsToRun.Add(SelectedJob);
+
+            if (jobsToRun.Count == 0) return;
 
             IsRunning = true;
 
@@ -291,49 +310,75 @@ namespace EasySave.WPF.ViewModels
             _cts = new CancellationTokenSource();
             var token = _cts.Token;
 
-            var job = SelectedJob; // snapshot
-
-            StatusMessage = $"Exécution : {job.Name}...";
-            ProgressValue = 0;
-
-            DetachJobHandlers(job);
-            AttachJobHandlers(job);
-
             try
             {
-                await Task.Run(() =>
-                {
-                    // appel du moteur avec token => Stop réel
-                    job.Execute(token);
-                }, token);
+                StatusMessage = $"Exécution de {jobsToRun.Count} travaux...";
+                ProgressValue = 0;
 
-                StatusMessage = $"{job.Name} terminé !";
-                ProgressValue = 100;
-
-                StateSettings.UpdateState(new StateLog
+                foreach (var job in jobsToRun)
                 {
-                    BackupName = job.Name,
-                    Timestamp = DateTime.Now,
-                    State = "NON ACTIVE",
-                    Progression = 100,
-                    SourceFilePath = "Terminé",
-                    TargetFilePath = ""
-                });
+                    token.ThrowIfCancellationRequested();
+
+                    // Reset visuel
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        job.Progress = 0;
+                        ProgressValue = 0;
+                        StatusMessage = $"Exécution : {job.Name}...";
+                    });
+
+                    // handlers propres par job
+                    DetachJobHandlers(job);
+                    AttachJobHandlers(job);
+
+                    await Task.Run(() =>
+                    {
+                        // Stop réel ici
+                        job.Execute(token);
+                    }, token);
+
+                    // fin job
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        job.Progress = 100;
+                        ProgressValue = 100;
+                        StatusMessage = $"{job.Name} terminé !";
+                    });
+
+                    StateSettings.UpdateState(new StateLog
+                    {
+                        BackupName = job.Name,
+                        Timestamp = DateTime.Now,
+                        State = "NON ACTIVE",
+                        Progression = 100,
+                        SourceFilePath = "Terminé",
+                        TargetFilePath = ""
+                    });
+
+                    DetachJobHandlers(job);
+
+                    // petit délai UX (optionnel)
+                    await Task.Delay(300, token);
+
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        job.Progress = 0; // si tu veux reset après
+                        ProgressValue = 0;
+                    });
+                }
+
+                StatusMessage = "Tous les travaux sont terminés !";
             }
             catch (OperationCanceledException)
             {
-                StatusMessage = $"Arrêt demandé : {job.Name}";
-                StateSettings.UpdateState(new StateLog
-                {
-                    BackupName = job.Name,
-                    Timestamp = DateTime.Now,
-                    State = "STOP_REQUESTED",
-                    Progression = ProgressValue
-                });
+                StatusMessage = "Arrêt demandé.";
             }
             finally
             {
-                DetachJobHandlers(job);
+                // sécurité
+                foreach (var j in BackupJobs)
+                    DetachJobHandlers(j);
+
                 IsRunning = false;
 
                 _cts?.Dispose();
@@ -341,10 +386,8 @@ namespace EasySave.WPF.ViewModels
             }
         }
 
-
         private void RequestStop()
         {
-            // stop "request" (sera stop réel quand BackupJob prendra un token)
             _cts?.Cancel();
         }
 
@@ -357,7 +400,9 @@ namespace EasySave.WPF.ViewModels
                 Application.Current.Dispatcher.Invoke(() =>
                 {
                     ProgressValue = args.Percentage;
-                    StatusMessage = $"{args.CurrentFileName} ({args.Percentage}%)";
+                    StatusMessage = $"{job.Name}: {args.Percentage}%";
+
+                    job.Progress = args.Percentage;
 
                     StateSettings.UpdateState(new StateLog
                     {
@@ -377,7 +422,7 @@ namespace EasySave.WPF.ViewModels
 
             _fileCopiedHandler = (sender, data) =>
             {
-                var logEntry = new EasySave.Log.Models.LogEntry
+                var logEntry = new Log.Models.LogEntry
                 {
                     Name = job.Name,
                     SourceFile = data.source,

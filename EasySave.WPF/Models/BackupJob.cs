@@ -1,24 +1,33 @@
-﻿using EasySave.WPF.Enumerations;
+﻿using EasySave.WPF.Config;
+using EasySave.WPF.Enumerations;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using EasySave.WPF.Config;
+using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace EasySave.WPF.Models
 {
-    public class BackupJob
+    public class BackupJob : INotifyPropertyChanged
     {
-        public string Name { get; set; }
-        public string SourceDirectory { get; set; }
-        public string TargetDirectory { get; set; }
+        public string Name { get; set; } = "";
+        public string SourceDirectory { get; set; } = "";
+        public string TargetDirectory { get; set; } = "";
         public BackupType Type { get; set; }
         public BackupState State { get; set; }
 
-        public event EventHandler<BackupProgressEventArgs> OnProgressUpdate;
-        public event EventHandler<(string source, string target, long size, float time)> OnFileCopied;
+        public event EventHandler<BackupProgressEventArgs>? OnProgressUpdate;
+        public event EventHandler<(string source, string target, long size, float time)>? OnFileCopied;
+
+        private int _progress;
+        public int Progress
+        {
+            get => _progress;
+            set { _progress = value; OnPropertyChanged(); }
+        }
 
         public BackupJob(string name, string source, string target, BackupType type)
         {
@@ -31,10 +40,10 @@ namespace EasySave.WPF.Models
 
         public BackupJob() { }
 
-        // Compatibilité
+        // ✅ compatibilité
         public void Execute() => Execute(CancellationToken.None);
 
-        // Stop réel
+        // ✅ Stop réel
         public void Execute(CancellationToken ct)
         {
             State = BackupState.Active;
@@ -71,7 +80,7 @@ namespace EasySave.WPF.Models
 
             foreach (var filePath in allFiles)
             {
-                // STOP entre 2 fichiers
+                // ✅ STOP entre 2 fichiers
                 ct.ThrowIfCancellationRequested();
 
                 string relativePath = Path.GetRelativePath(SourceDirectory, filePath);
@@ -109,7 +118,7 @@ namespace EasySave.WPF.Models
                     catch
                     {
                         swCopy.Stop();
-                        // temps négatif en cas d’erreur (CDC)
+                        // ✅ temps négatif en cas d’erreur
                         OnFileCopied?.Invoke(this, (filePath, targetFilePath, currentFileSize, -swCopy.ElapsedMilliseconds));
                         State = BackupState.Error;
                         continue;
@@ -129,7 +138,7 @@ namespace EasySave.WPF.Models
 
                         try
                         {
-                            ProcessStartInfo startInfo = new ProcessStartInfo
+                            var startInfo = new ProcessStartInfo
                             {
                                 FileName = cryptoSoftPath,
                                 Arguments = $"\"{targetFilePath}\" \"{encryptionKey}\"",
@@ -138,15 +147,15 @@ namespace EasySave.WPF.Models
                                 CreateNoWindow = true
                             };
 
-                            using (Process process = Process.Start(startInfo))
+                            using (var process = Process.Start(startInfo))
                             {
-                                process.WaitForExit();
-                                encryptionTime = process.ExitCode; // >=0 temps / <0 erreur
+                                process!.WaitForExit();
+                                encryptionTime = process.ExitCode; // >=0: temps / <0: erreur
                             }
                         }
                         catch
                         {
-                            // Si crash lancement CryptoSoft => code erreur négatif
+                            // crash lancement CryptoSoft
                             encryptionTime = -1;
                         }
                     }
@@ -156,6 +165,9 @@ namespace EasySave.WPF.Models
 
                 processedCount++;
                 currentSizeProcessed += currentFileSize;
+
+                int percent = totalFiles == 0 ? 100 : (int)Math.Round(processedCount * 100.0 / totalFiles);
+                Progress = percent;
 
                 OnProgressUpdate?.Invoke(this, new BackupProgressEventArgs(
                     totalFiles,
@@ -169,6 +181,12 @@ namespace EasySave.WPF.Models
             }
 
             State = BackupState.Inactive;
+            Progress = 100;
         }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
