@@ -128,6 +128,8 @@ namespace EasySave.WPF.ViewModels
         public ICommand RemoveExtensionCommand { get; }
         public ICommand AddProcessCommand { get; }
         public ICommand RemoveProcessCommand { get; }
+        public ICommand BrowseSourceCommand { get; }
+        public ICommand BrowseTargetCommand { get; }
 
         public string this[string key] => ResourceSettings.GetString(key);
 
@@ -163,8 +165,28 @@ namespace EasySave.WPF.ViewModels
             RemoveExtensionCommand = new RelayCommand(param => RemoveExtension(param as string), param => param is string);
             AddProcessCommand = new RelayCommand(param => AddProcess());
             RemoveProcessCommand = new RelayCommand(param => RemoveProcess(param as string), param => param is string);
+            BrowseSourceCommand = new RelayCommand(param => BrowseSource());
+            BrowseTargetCommand = new RelayCommand(param => BrowseTarget());
 
             StatusMessage = ResourceSettings.GetString("StatusReady");
+        }
+
+        private void BrowseSource()
+        {
+            var dialog = new Microsoft.Win32.OpenFolderDialog();
+            if (dialog.ShowDialog() == true)
+            {
+                SourcePath = dialog.FolderName;
+            }
+        }
+
+        private void BrowseTarget()
+        {
+            var dialog = new Microsoft.Win32.OpenFolderDialog();
+            if (dialog.ShowDialog() == true)
+            {
+                TargetPath = dialog.FolderName;
+            }
         }
 
         private void UpdateLogger(bool isStartup)
