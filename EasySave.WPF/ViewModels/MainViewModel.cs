@@ -209,7 +209,12 @@ namespace EasySave.WPF.ViewModels
                     var jobs = JsonSerializer.Deserialize<ObservableCollection<BackupJob>>(json);
                     if (jobs != null)
                     {
-                        foreach (var job in jobs) BackupJobs.Add(job);
+                        foreach (var job in jobs)
+                        {
+                            job.Progress = 0;
+                            job.State = BackupState.Inactive;
+                            BackupJobs.Add(job);
+                        }
                     }
                 }
                 catch (Exception ex)
