@@ -10,6 +10,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -91,6 +92,7 @@ namespace EasySave.WPF.ViewModels
                 }
             }
         }
+
         public Language SelectedLanguage
         {
             get => AppSettings.Instance.Language;
@@ -101,20 +103,18 @@ namespace EasySave.WPF.ViewModels
                     AppSettings.Instance.Language = value;
                     OnPropertyChanged();
 
-                    if (value == _startupLanguage)
-                    {
-                        RestartWarningVisibility = Visibility.Collapsed;
-                    }
-                    else
-                    {
-                        RestartWarningVisibility = Visibility.Visible;
-                    }
+                    RestartWarningVisibility = (value == _startupLanguage)
+                        ? Visibility.Collapsed
+                        : Visibility.Visible;
                 }
             }
         }
 
         private readonly string _jobsFilePath;
         private ILogger _logger;
+
+        // stop global de jobs parallèles
+        private CancellationTokenSource? _cts;
 
         public ICommand CreateJobCommand { get; }
         public ICommand DeleteJobCommand { get; }
@@ -143,10 +143,14 @@ namespace EasySave.WPF.ViewModels
                     .Select(ext => ext.ToLower().Trim())
             );
 
-            CreateJobCommand = new RelayCommand(param => CreateJob());
-            DeleteJobCommand = new RelayCommand(param => DeleteJob(), param => SelectedJob != null);
-            ExecuteJobCommand = new RelayCommand(param => ExecuteJob(), param => SelectedJob != null || SelectedJobsList.Count > 0);
-            AddExtensionCommand = new RelayCommand(param => AddExtension());
+            CreateJobCommand = new RelayCommand(_ => CreateJob());
+            DeleteJobCommand = new RelayCommand(_ => DeleteJob(), _ => SelectedJob != null);
+
+            // Important : async void OK ici car RelayCommand(Action)
+            ExecuteJobCommand = new RelayCommand(async _ => await ExecuteJobsParallelAsync(),
+                                                _ => SelectedJob != null || (SelectedJobsList?.Count ?? 0) > 0);
+
+            AddExtensionCommand = new RelayCommand(_ => AddExtension());
             RemoveExtensionCommand = new RelayCommand(param => RemoveExtension(param as string), param => param is string);
 
             StatusMessage = ResourceSettings.GetString("StatusReady");
@@ -157,9 +161,7 @@ namespace EasySave.WPF.ViewModels
             _logger = LoggerCrea.CreateLogger(AppSettings.Instance.LogFormat, AppSettings.Instance.LogDirectory);
 
             if (!isStartup)
-            {
                 StatusMessage = $"Logger : {AppSettings.Instance.LogFormat.ToUpper()} active.";
-            }
         }
 
         private void LoadJobs()
@@ -171,9 +173,7 @@ namespace EasySave.WPF.ViewModels
                     string json = File.ReadAllText(_jobsFilePath);
                     var jobs = JsonSerializer.Deserialize<ObservableCollection<BackupJob>>(json);
                     if (jobs != null)
-                    {
                         foreach (var job in jobs) BackupJobs.Add(job);
-                    }
                 }
                 catch (Exception ex)
                 {
@@ -251,33 +251,44 @@ namespace EasySave.WPF.ViewModels
             }
         }
 
-        private async void ExecuteJob()
+        // PARALLÈLE (multithreading) : tous les jobs démarrent ensemble
+        private async Task ExecuteJobsParallelAsync()
         {
             var jobsToRun = new List<BackupJob>();
 
-            if (SelectedJobsList.Count > 0)
-            {
+            if (SelectedJobsList != null && SelectedJobsList.Count > 0)
                 jobsToRun.AddRange(SelectedJobsList);
-            }
             else if (SelectedJob != null)
-            {
                 jobsToRun.Add(SelectedJob);
-            }
 
             if (jobsToRun.Count == 0) return;
 
-            StatusMessage = $"Exécution de {jobsToRun.Count} travaux...";
+            // reset progress
+            foreach (var j in jobsToRun) j.Progress = 0;
             ProgressValue = 0;
-            foreach (var job in jobsToRun)
+
+            StatusMessage = $"Exécution parallèle de {jobsToRun.Count} travaux...";
+
+            // token global (si tu ajoutes un bouton Stop plus tard)
+            _cts?.Cancel();
+            _cts?.Dispose();
+            _cts = new CancellationTokenSource();
+            var token = _cts.Token;
+
+            // 1 task par job
+            var tasks = jobsToRun.Select(job => Task.Run(() =>
             {
+                // handlers locaux => safe en parallèle
                 EventHandler<BackupProgressEventArgs> progressHandler = (sender, args) =>
                 {
                     Application.Current.Dispatcher.Invoke(() =>
                     {
-                        ProgressValue = args.Percentage;
-                        StatusMessage = $"{job.Name}: {args.Percentage}%";
-
                         job.Progress = args.Percentage;
+
+                        // progress global = moyenne
+                        ProgressValue = (int)Math.Round(jobsToRun.Average(j => j.Progress));
+
+                        StatusMessage = $"{job.Name}: {args.Percentage}%";
 
                         var stateLog = new StateLog
                         {
@@ -312,41 +323,66 @@ namespace EasySave.WPF.ViewModels
                 job.OnProgressUpdate += progressHandler;
                 job.OnFileCopied += fileCopiedHandler;
 
-                await Task.Run(() =>
+                try
                 {
-                    job.Execute();
-                });
+                    // exécution avec token (stop possible plus tard)
+                    job.Execute(token);
 
-                job.OnProgressUpdate -= progressHandler;
-                job.OnFileCopied -= fileCopiedHandler;
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        job.Progress = 100;
 
-                job.Progress = 100;
-
-                var finalState = new StateLog
+                        StateSettings.UpdateState(new StateLog
+                        {
+                            BackupName = job.Name,
+                            Timestamp = DateTime.Now,
+                            State = "NON ACTIVE",
+                            Progression = 100,
+                            SourceFilePath = "Terminé",
+                            TargetFilePath = ""
+                        });
+                    });
+                }
+                catch (OperationCanceledException)
                 {
-                    BackupName = job.Name,
-                    Timestamp = DateTime.Now,
-                    State = "NON ACTIVE",
-                    Progression = 100
-                };
-                StateSettings.UpdateState(finalState);
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        StateSettings.UpdateState(new StateLog
+                        {
+                            BackupName = job.Name,
+                            Timestamp = DateTime.Now,
+                            State = "STOP_REQUESTED",
+                            Progression = job.Progress
+                        });
+                    });
+                }
+                finally
+                {
+                    job.OnProgressUpdate -= progressHandler;
+                    job.OnFileCopied -= fileCopiedHandler;
+                }
 
-                await Task.Delay(500);
-                job.Progress = 0;
+            }, token)).ToList();
+
+            try
+            {
+                await Task.WhenAll(tasks);
+
+                StatusMessage = "Tous les travaux sont terminés !";
+                ProgressValue = 100;
+
+                await Task.Delay(1000);
+                ProgressValue = 0;
             }
-
-            StatusMessage = "Tous les travaux sont terminés !";
-            ProgressValue = 100;
-            await Task.Delay(2000);
-            ProgressValue = 0;
+            catch (OperationCanceledException)
+            {
+                StatusMessage = "Arrêt demandé.";
+            }
         }
 
         public class LanguageProxy
         {
-            public string this[string key]
-            {
-                get => ResourceSettings.GetString(key);
-            }
+            public string this[string key] => ResourceSettings.GetString(key);
         }
     }
 }
