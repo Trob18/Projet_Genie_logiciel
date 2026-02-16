@@ -1,10 +1,10 @@
-﻿using EasySave.App.Enumerations;
+﻿using EasySave.WPF.Enumerations;
 using System;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace EasySave.App.Config
+namespace EasySave.WPF.Config
 {
     public class AppSettings
     {
@@ -45,6 +45,48 @@ namespace EasySave.App.Config
         public string LogDirectory { get; set; }
         public string StateDirectory { get; set; }
 
+        private string _encryptedExtensions;
+        public string EncryptedExtensions
+        {
+            get => _encryptedExtensions;
+            set
+            {
+                if (_encryptedExtensions != value)
+                {
+                    _encryptedExtensions = value;
+                    SaveSettings();
+                }
+            }
+        }
+        
+        private bool _encryptAll;
+        public bool EncryptAll
+        {
+            get => _encryptAll;
+            set
+            {
+                if (_encryptAll != value)
+                {
+                    _encryptAll = value;
+                    SaveSettings();
+                }
+            }
+        }
+
+        private string _blockedProcesses;
+        public string BlockedProcesses
+        {
+            get => _blockedProcesses;
+            set
+            {
+                if (_blockedProcesses != value)
+                {
+                    _blockedProcesses = value;
+                    SaveSettings();
+                }
+            }
+        }
+
         public static AppSettings Instance
         {
             get
@@ -64,6 +106,9 @@ namespace EasySave.App.Config
         {
             _language = Language.English;
             _logFormat = "json";
+            _encryptedExtensions = "";
+            _encryptAll = false;
+            _blockedProcesses = "notepad,mspaint";
             LogDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
             StateDirectory = AppDomain.CurrentDomain.BaseDirectory;
             LoadSettings();
@@ -84,6 +129,9 @@ namespace EasySave.App.Config
                     {
                         _language = savedSettings.Language;
                         _logFormat = savedSettings.LogFormat;
+                        _encryptedExtensions = savedSettings.EncryptedExtensions;
+                        _encryptAll = savedSettings.EncryptAll;
+                        _blockedProcesses = savedSettings.BlockedProcesses ?? "notepad,mspaint";
                     }
                 }
                 catch
@@ -97,7 +145,10 @@ namespace EasySave.App.Config
             var settingsToSave = new AppSettingsDto
             {
                 Language = _language,
-                LogFormat = _logFormat
+                LogFormat = _logFormat,
+                EncryptedExtensions = _encryptedExtensions,
+                EncryptAll = _encryptAll,
+                BlockedProcesses = _blockedProcesses
             };
 
             var options = new JsonSerializerOptions { WriteIndented = true };
@@ -110,5 +161,8 @@ namespace EasySave.App.Config
     {
         public Language Language { get; set; }
         public string LogFormat { get; set; }
+        public string EncryptedExtensions { get; set; }
+        public bool EncryptAll { get; set; }
+        public string BlockedProcesses { get; set; }
     }
 }
