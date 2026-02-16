@@ -400,6 +400,21 @@ namespace EasySave.WPF.ViewModels
                             StateSettings.UpdateState(finalState);
                         });
                     }
+                    catch (BlockedProcessException bpex)
+                    {
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            job.State = BackupState.Paused;
+                            string message = string.Format(ResourceSettings.GetString("ProcessBlockedMessage"), bpex.ProcessName);
+                            StatusMessage = $"{ResourceSettings.GetString("Error")} : {message}";
+                            MessageBox.Show(
+                                message, 
+                                ResourceSettings.GetString("Error"), 
+                                MessageBoxButton.OK, 
+                                MessageBoxImage.Warning
+                            );
+                        });
+                    }
                     catch (Exception ex)
                     {
                         Application.Current.Dispatcher.Invoke(() =>

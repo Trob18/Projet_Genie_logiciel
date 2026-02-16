@@ -103,25 +103,9 @@ namespace EasySave.WPF.Models
             RemainingTimeText = "";
             Stopwatch overallStopwatch = Stopwatch.StartNew();
 
-            var blockedProcessNames = AppSettings.Instance.BlockedProcesses
-                                      .Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                                      .Select(p => p.Trim().ToLower())
-                                      .ToList();
+            var blockedProcessNames = GetBlockedProcessNames();
 
-            foreach (var processName in blockedProcessNames)
-            {
-                if (string.IsNullOrWhiteSpace(processName)) continue;
-
-                var processes = Process.GetProcessesByName(processName);
-                if (processes.Length > 0)
-                {
-                    foreach (var process in processes)
-                    {
-                        process.Dispose();
-                    }
-                    throw new IOException($"The process '{processName}' is running and must be closed before starting a backup.");
-                }
-            }
+            CheckBlockedProcesses(blockedProcessNames);
 
             if (!Directory.Exists(SourceDirectory))
             {
@@ -178,6 +162,7 @@ namespace EasySave.WPF.Models
 
             foreach (var filePath in allFiles)
             {
+                CheckBlockedProcesses(blockedProcessNames);
                 try
                 {
                     string relativePath = Path.GetRelativePath(SourceDirectory, filePath);
@@ -285,6 +270,32 @@ namespace EasySave.WPF.Models
             State = BackupState.Inactive;
             RemainingTimeText = "";
         }
+        private List<string> GetBlockedProcessNames()
+        {
+            return AppSettings.Instance.BlockedProcesses
+                                      .Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                                      .Select(p => p.Trim().ToLower())
+                                      .ToList();
+        }
+
+        private void CheckBlockedProcesses(List<string> blockedProcessNames)
+        {
+            foreach (var processName in blockedProcessNames)
+            {
+                if (string.IsNullOrWhiteSpace(processName)) continue;
+
+                var processes = Process.GetProcessesByName(processName);
+                if (processes.Length > 0)
+                {
+                    foreach (var process in processes)
+                    {
+                        process.Dispose();
+                    }
+                    throw new BlockedProcessException(processName);
+                }
+            }
+        }
+
         public event PropertyChangedEventHandler PropertyChanged;
 
         protected void OnPropertyChanged([CallerMemberName] string propertyName = null)

@@ -32,7 +32,6 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <GroupBox Header="{Binding Labels[JobName]}" Grid.Row="0" Margin="0,0,0,10" Padding="10">
@@ -161,22 +160,6 @@
                     <Button Content="{Binding Labels[Execute]}" Command="{Binding ExecuteJobCommand}" 
                             Width="100" Height="30" Background="#CCFFCC" FontWeight="Bold"/>
                 </StackPanel>
-
-                <StatusBar Grid.Row="3" Height="30">
-                    <StatusBarItem>
-                        <TextBlock Text="{Binding Labels[Status]}" FontWeight="Bold"/>
-                    </StatusBarItem>
-                    <StatusBarItem>
-                        <TextBlock Text="{Binding StatusMessage}" Width="400"/>
-                    </StatusBarItem>
-                    <Separator/>
-                    <StatusBarItem HorizontalContentAlignment="Right">
-                        <ProgressBar Value="{Binding ProgressValue}" Width="200" Height="15" Minimum="0" Maximum="100"/>
-                    </StatusBarItem>
-                    <StatusBarItem>
-                        <TextBlock Text="{Binding ProgressValue, StringFormat={}{0}%}"/>
-                    </StatusBarItem>
-                </StatusBar>
             </Grid>
         </TabItem>
 

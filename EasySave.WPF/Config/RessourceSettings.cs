@@ -41,6 +41,7 @@ namespace EasySave.WPF.Config
             { "ExecutingJobs", "Exécution de {0} travaux..." },
             { "JobFinished", "terminé !" },
             { "Status", "Statut :" },
+            { "ProcessBlockedMessage", "Le processus '{0}' est en cours d'exécution et doit être fermé pour continuer la sauvegarde." },
             { "RestartWarning", "Le changement de langue nécessitera un redémarrage pour être complet." }
         };
 
@@ -80,6 +81,7 @@ namespace EasySave.WPF.Config
             { "ExecutingJobs", "Executing {0} jobs..." },
             { "JobFinished", "finished !" },
             { "Status", "Status :" },
+            { "ProcessBlockedMessage", "The process '{0}' is running and must be closed to continue the backup." },
             { "RestartWarning", "Language change requires a restart to be fully applied." }
         };
 
