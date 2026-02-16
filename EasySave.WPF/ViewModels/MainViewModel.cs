@@ -295,7 +295,7 @@ namespace EasySave.WPF.ViewModels
         {
             if (string.IsNullOrWhiteSpace(JobName) || string.IsNullOrWhiteSpace(SourcePath) || string.IsNullOrWhiteSpace(TargetPath))
             {
-                StatusMessage = "Champs vides !";
+                StatusMessage = ResourceSettings.GetString("EmptyFields");
                 return;
             }
 
@@ -303,7 +303,7 @@ namespace EasySave.WPF.ViewModels
             BackupJobs.Add(newJob);
             SaveJobs();
 
-            StatusMessage = $"{JobName} créé.";
+            StatusMessage = $"{JobName} {ResourceSettings.GetString("JobCreated")}";
             JobName = ""; SourcePath = ""; TargetPath = "";
         }
 
@@ -313,7 +313,7 @@ namespace EasySave.WPF.ViewModels
             {
                 BackupJobs.Remove(SelectedJob);
                 SaveJobs();
-                StatusMessage = "Travail supprimé.";
+                StatusMessage = ResourceSettings.GetString("JobDeleted");
             }
         }
 
@@ -332,7 +332,7 @@ namespace EasySave.WPF.ViewModels
 
             if (jobsToRun.Count == 0) return;
 
-            StatusMessage = $"Exécution de {jobsToRun.Count} travaux...";
+            StatusMessage = string.Format(ResourceSettings.GetString("ExecutingJobs"), jobsToRun.Count);
             ProgressValue = 0;
             foreach (var job in jobsToRun)
             {
@@ -387,7 +387,7 @@ namespace EasySave.WPF.ViewModels
 
                         Application.Current.Dispatcher.Invoke(() =>
                         {
-                            StatusMessage = $"{job.Name} terminé !";
+                            StatusMessage = $"{job.Name} {ResourceSettings.GetString("JobFinished")}";
                             ProgressValue = 100;
 
                             var finalState = new StateLog
@@ -404,7 +404,7 @@ namespace EasySave.WPF.ViewModels
                     {
                         Application.Current.Dispatcher.Invoke(() =>
                         {
-                            StatusMessage = $"Erreur : {ex.Message}";
+                            StatusMessage = $"{ResourceSettings.GetString("Error")} : {ex.Message}";
                             job.State = BackupState.Error;
                         });
                     }

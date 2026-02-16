@@ -36,9 +36,9 @@ namespace EasySave.WPF.Models
         {
             get
             {
-                if (State == BackupState.Error) return "Error";
+                if (State == BackupState.Error) return ResourceSettings.GetString("Error");
                 if (Progress == 0 && State == BackupState.Inactive) return "";
-                if (Progress == 100 && State == BackupState.Inactive) return "Success";
+                if (Progress == 100 && State == BackupState.Inactive) return ResourceSettings.GetString("Success");
                 string text = $"{Progress}%";
                 if (State == BackupState.Active && !string.IsNullOrEmpty(RemainingTimeText))
                 {
