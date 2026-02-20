@@ -7,13 +7,13 @@ using EasySave.WPF.State;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
-using System.Diagnostics;
 
 namespace EasySave.WPF.ViewModels
 {
@@ -49,7 +49,7 @@ namespace EasySave.WPF.ViewModels
 
         private string _newExtensionInput;
         public string NewExtensionInput { get => _newExtensionInput; set { _newExtensionInput = value; OnPropertyChanged(); } }
-        
+
         public ObservableCollection<string> BlockedProcessesList { get; set; }
         private string _newProcessInput;
         public string NewProcessInput { get => _newProcessInput; set { _newProcessInput = value; OnPropertyChanged(); } }
@@ -103,6 +103,7 @@ namespace EasySave.WPF.ViewModels
                 }
             }
         }
+
         public Language SelectedLanguage
         {
             get => AppSettings.Instance.Language;
@@ -114,13 +115,9 @@ namespace EasySave.WPF.ViewModels
                     OnPropertyChanged();
 
                     if (value == _startupLanguage)
-                    {
                         RestartWarningVisibility = Visibility.Collapsed;
-                    }
                     else
-                    {
                         RestartWarningVisibility = Visibility.Visible;
-                    }
                 }
             }
         }
@@ -158,7 +155,7 @@ namespace EasySave.WPF.ViewModels
                     .Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(ext => ext.ToLower().Trim())
             );
-            
+
             BlockedProcessesList = new ObservableCollection<string>(
                 AppSettings.Instance.BlockedProcesses
                     .Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries)
@@ -279,7 +276,7 @@ namespace EasySave.WPF.ViewModels
         {
             AppSettings.Instance.EncryptedExtensions = string.Join(", ", EncryptedExtensionsList);
         }
-        
+
         private void AddProcess()
         {
             if (!string.IsNullOrWhiteSpace(NewProcessInput))
@@ -336,6 +333,7 @@ namespace EasySave.WPF.ViewModels
             }
         }
 
+        // MULTITHREAD ILLIMITÉ : une Task par job + WhenAll
         private async void ExecuteJob()
         {
             var jobsToRun = new List<BackupJob>();
@@ -353,15 +351,22 @@ namespace EasySave.WPF.ViewModels
 
             StatusMessage = string.Format(ResourceSettings.GetString("ExecutingJobs"), jobsToRun.Count);
             ProgressValue = 0;
+
+            // On lance tous les jobs en parallèle
+            var tasks = new List<Task>();
+
             foreach (var job in jobsToRun)
             {
+                // handlers spécifiques à CE job
                 EventHandler<BackupProgressEventArgs> progressHandler = (sender, args) =>
                 {
                     Application.Current.Dispatcher.Invoke(() =>
                     {
+                        // Global : sera forcément “écrasé” par le dernier événement reçu (normal)
                         ProgressValue = args.Percentage;
                         StatusMessage = $"{job.Name}: {args.Percentage}%";
 
+                        // Par job (DataGrid) : c’est ça qui doit être visible en parallèle
                         job.Progress = args.Percentage;
 
                         var stateLog = new StateLog
@@ -398,7 +403,8 @@ namespace EasySave.WPF.ViewModels
                 job.OnProgressUpdate += progressHandler;
                 job.OnFileCopied += fileCopiedHandler;
 
-                await Task.Run(() =>
+                // Task dédiée pour CE job (en parallèle)
+                var task = Task.Run(() =>
                 {
                     try
                     {
@@ -406,15 +412,17 @@ namespace EasySave.WPF.ViewModels
 
                         Application.Current.Dispatcher.Invoke(() =>
                         {
-                            StatusMessage = $"{job.Name} {ResourceSettings.GetString("JobFinished")}";
-                            ProgressValue = 100;
+                            // job finit propre
+                            job.Progress = 100;
 
                             var finalState = new StateLog
                             {
                                 BackupName = job.Name,
                                 Timestamp = DateTime.Now,
                                 State = "NON ACTIVE",
-                                Progression = 100
+                                Progression = 100,
+                                SourceFilePath = "Terminé",
+                                TargetFilePath = ""
                             };
                             StateSettings.UpdateState(finalState);
                         });
@@ -426,10 +434,11 @@ namespace EasySave.WPF.ViewModels
                             job.State = BackupState.Paused;
                             string message = string.Format(ResourceSettings.GetString("ProcessBlockedMessage"), bpex.ProcessName);
                             StatusMessage = $"{ResourceSettings.GetString("Error")} : {message}";
+
                             MessageBox.Show(
-                                message, 
-                                ResourceSettings.GetString("Error"), 
-                                MessageBoxButton.OK, 
+                                message,
+                                ResourceSettings.GetString("Error"),
+                                MessageBoxButton.OK,
                                 MessageBoxImage.Warning
                             );
                         });
@@ -444,13 +453,28 @@ namespace EasySave.WPF.ViewModels
                     }
                     finally
                     {
+                        // ultra important en parallèle : désabonnement quoi qu’il arrive
                         job.OnProgressUpdate -= progressHandler;
                         job.OnFileCopied -= fileCopiedHandler;
                     }
                 });
-            }
-        }
 
+                tasks.Add(task);
+            }
+
+            // attendre que tous les jobs soient terminés (toujours en parallèle)
+            await Task.WhenAll(tasks);
+
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                StatusMessage = ResourceSettings.GetString("AllJobsFinished") ?? "Tous les travaux sont terminés !";
+                ProgressValue = 100;
+            });
+
+            // remettre la barre globale à 0 après un court délai
+            await Task.Delay(2000);
+            Application.Current.Dispatcher.Invoke(() => ProgressValue = 0);
+        }
 
         public class LanguageProxy
         {
